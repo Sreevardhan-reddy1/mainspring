@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Team Ticket Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; color: #222; min-height: 100vh; }
+
+/* HEADER */
+.header { background: linear-gradient(135deg, #1a237e 0%, #283593 100%); color: white; padding: 18px 32px; display: flex; align-items: center; gap: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+.header-icon { font-size: 28px; }
+.header h1 { font-size: 22px; font-weight: 700; }
+.header p  { font-size: 12px; opacity: 0.8; margin-top: 2px; }
+
+/* MAIN */
+.main { max-width: 1400px; margin: 0 auto; padding: 24px 20px; }
+
+/* UPLOAD */
+.upload-section { margin-bottom: 24px; }
+.upload-box { border: 2px dashed #90caf9; border-radius: 12px; background: white; padding: 40px 20px; text-align: center; cursor: pointer; transition: all 0.2s; }
+.upload-box:hover, .upload-box.dragover { border-color: #1a237e; background: #e8eaf6; }
+.upload-box .icon { font-size: 48px; margin-bottom: 10px; }
+.upload-box h3 { color: #1a237e; font-size: 17px; margin-bottom: 6px; }
+.upload-box p  { color: #666; font-size: 13px; }
+.btn-upload { display: inline-block; margin-top: 14px; padding: 9px 28px; background: #1a237e; color: white; border-radius: 6px; font-size: 14px; border: none; cursor: pointer; font-weight: 600; }
+.btn-upload:hover { background: #283593; }
+#fileInput { display: none; }
+
+/* SUMMARY CARDS */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.card { background: white; border-radius: 10px; padding: 16px 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 4px solid; }
+.card.blue   { border-color: #1a237e; } .card.green  { border-color: #2e7d32; }
+.card.orange { border-color: #e65100; } .card.purple { border-color: #6a1b9a; }
+.card.teal   { border-color: #00695c; } .card.red    { border-color: #c62828; }
+.card label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+.card .val  { font-size: 26px; font-weight: 700; margin-top: 2px; }
+.card.blue   .val { color: #1a237e; } .card.green  .val { color: #2e7d32; }
+.card.orange .val { color: #e65100; } .card.purple .val { color: #6a1b9a; }
+.card.teal   .val { color: #00695c; } .card.red    .val { color: #c62828; }
+
+/* FILTERS */
+.filters-panel { background: white; border-radius: 10px; padding: 18px 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 20px; }
+.filters-panel h3 { font-size: 14px; font-weight: 700; color: #1a237e; margin-bottom: 14px; }
+.filters-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+.filter-group { display: flex; flex-direction: column; gap: 4px; min-width: 150px; flex: 1; }
+.filter-group label { font-size: 12px; color: #555; font-weight: 600; }
+.filter-group select, .filter-group input { padding: 7px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; background: white; outline: none; }
+.filter-group select:focus { border-color: #1a237e; }
+.btn-filter { padding: 8px 20px; background: #1a237e; color: white; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 600; align-self: flex-end; }
+.btn-filter:hover { background: #283593; }
+.btn-reset  { padding: 8px 20px; background: white; color: #1a237e; border: 1px solid #1a237e; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 600; align-self: flex-end; }
+.btn-reset:hover { background: #e8eaf6; }
+
+/* VIEW TABS */
+.view-tabs { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.tab-btn { padding: 8px 20px; border-radius: 6px; border: 1px solid #ddd; background: white; font-size: 13px; cursor: pointer; font-weight: 600; color: #555; transition: all 0.15s; }
+.tab-btn.active { background: #1a237e; color: white; border-color: #1a237e; }
+.tab-btn:hover:not(.active) { background: #e8eaf6; }
+.btn-export { margin-left: auto; padding: 8px 18px; background: #2e7d32; color: white; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 600; }
+.btn-export:hover { background: #1b5e20; }
+
+/* TABLE */
+.table-section { background: white; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); overflow: hidden; }
+.table-header { padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f0f0f0; }
+.table-header h3 { font-size: 14px; font-weight: 700; color: #1a237e; }
+.table-header .count { font-size: 12px; color: #888; }
+.table-wrap { overflow-x: auto; max-height: 520px; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead th { background: #1a237e; color: white; padding: 11px 14px; text-align: left; font-weight: 600; font-size: 12px; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+thead th.num { text-align: center; }
+tbody tr:nth-child(even) { background: #f9fafb; }
+tbody tr:hover { background: #e8eaf6; }
+tbody td { padding: 9px 14px; border-bottom: 1px solid #f0f0f0; }
+tbody td.num { text-align: center; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+.badge-inc  { background: #fff3e0; color: #e65100; }
+.badge-ritm { background: #e8eaf6; color: #1a237e; }
+.badge-macm { background: #f3e5f5; color: #6a1b9a; }
+.badge-jira { background: #e0f7fa; color: #006064; }
+.badge-nt   { background: #fce4ec; color: #880e4f; }
+.zero { color: #ccc; }
+.total-row td { font-weight: 700; background: #e8eaf6 !important; color: #1a237e; }
+
+/* ─── CHARTS ─── */
+.charts-section { display: none; }
+.chart-ctrl-panel { background: white; border-radius: 10px; padding: 18px 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 16px; }
+.chart-ctrl-panel h3 { font-size: 14px; font-weight: 700; color: #1a237e; margin-bottom: 14px; }
+.chart-type-row { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.ct-btn { padding: 9px 22px; border-radius: 6px; border: 1px solid #ddd; background: white; font-size: 13px; cursor: pointer; font-weight: 600; color: #555; transition: all 0.15s; }
+.ct-btn.active { background: #1a237e; color: white; border-color: #1a237e; }
+.ct-btn:hover:not(.active) { background: #e8eaf6; }
+.chart-sel-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+.charts-grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
+.chart-box { background: white; border-radius: 10px; padding: 24px 20px 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); position: relative; }
+.chart-box canvas { display: block; }
+.chart-placeholder { text-align: center; padding: 60px; color: #aaa; font-size: 14px; }
+
+/* PLACEHOLDER */
+.placeholder { text-align: center; padding: 60px 20px; color: #aaa; }
+.placeholder .icon { font-size: 52px; margin-bottom: 12px; }
+.placeholder p { font-size: 14px; }
+
+/* NOTIFICATION */
+.notify { position: fixed; top: 20px; right: 20px; color: white; padding: 12px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 9999; display: none; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-icon">📊</div>
+  <div>
+    <h1>Team Ticket Dashboard</h1>
+    <p>Upload your Excel file to analyse team & individual ticket data</p>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- UPLOAD -->
+  <div class="upload-section" id="uploadSection">
+    <div class="upload-box" id="dropZone">
+      <div class="icon">📂</div>
+      <h3>Drag & Drop your Excel file here</h3>
+      <p>Supports .xlsx / .xls — each sheet = one team</p>
+      <button class="btn-upload" onclick="document.getElementById('fileInput').click()">Browse File</button>
+      <input type="file" id="fileInput" accept=".xlsx,.xls">
+    </div>
+  </div>
+
+  <!-- SUMMARY CARDS -->
+  <div class="cards" id="cardsSection" style="display:none">
+    <div class="card blue">  <label>Total Employees</label><div class="val" id="cEmployees">0</div></div>
+    <div class="card green"> <label>Total Teams</label>    <div class="val" id="cTeams">0</div></div>
+    <div class="card orange"><label>Total INC</label>      <div class="val" id="cINC">0</div></div>
+    <div class="card purple"><label>Total RITM</label>     <div class="val" id="cRITM">0</div></div>
+    <div class="card teal">  <label>Total MACM</label>     <div class="val" id="cMACM">0</div></div>
+    <div class="card red">   <label>Non-Ticketed</label>   <div class="val" id="cNT">0</div></div>
+  </div>
+
+  <!-- FILTERS -->
+  <div class="filters-panel" id="filtersPanel" style="display:none">
+    <h3>🔍 Filters</h3>
+    <div class="filters-row">
+      <div class="filter-group">
+        <label>Team / Sheet</label>
+        <select id="fTeam"><option value="">All Teams</option></select>
+      </div>
+      <div class="filter-group">
+        <label>Employee Name</label>
+        <select id="fEmployee"><option value="">All Employees</option></select>
+      </div>
+      <div class="filter-group">
+        <label>Month</label>
+        <select id="fMonth">
+          <option value="">All Months</option>
+          <option value="1">January</option><option value="2">February</option>
+          <option value="3">March</option><option value="4">April</option>
+          <option value="5">May</option><option value="6">June</option>
+          <option value="7">July</option><option value="8">August</option>
+          <option value="9">September</option><option value="10">October</option>
+          <option value="11">November</option><option value="12">December</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Year</label>
+        <select id="fYear"><option value="">All Years</option></select>
+      </div>
+      <button class="btn-filter" onclick="applyFilters()">Apply</button>
+      <button class="btn-reset"  onclick="resetFilters()">Reset</button>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="view-tabs" id="viewTabs" style="display:none">
+    <button class="tab-btn active" id="tabTeam"       onclick="switchView('team')">📋 Team View</button>
+    <button class="tab-btn"        id="tabIndividual" onclick="switchView('individual')">👤 Individual View</button>
+    <button class="tab-btn"        id="tabCharts"     onclick="switchView('charts')">📊 Charts</button>
+    <button class="btn-export" onclick="exportToExcel()">⬇ Export Excel</button>
+  </div>
+
+  <!-- ═══ CHARTS SECTION ═══ -->
+  <div class="charts-section" id="chartsSection">
+
+    <div class="chart-ctrl-panel">
+      <h3>📊 Chart Controls</h3>
+      <div class="chart-type-row">
+        <button class="ct-btn active" id="ctTrend" onclick="switchChartType('trend')">📊 Ticket Trend Graphs</button>
+        <button class="ct-btn"        id="ctProd"  onclick="switchChartType('productivity')">📈 Productivity Report</button>
+      </div>
+      <div class="chart-sel-row">
+        <div class="filter-group" id="ctTeamGroup">
+          <label>Select Team</label>
+          <select id="ctTeam" onchange="renderCharts()">
+            <option value="">All Teams</option>
+          </select>
+        </div>
+        <div class="filter-group" id="ctEmpGroup" style="display:none">
+          <label>Select Employee</label>
+          <select id="ctEmployee" onchange="renderCharts()">
+            <option value="">-- Select Employee --</option>
+          </select>
+        </div>
+        <div class="filter-group" id="ctYearGroup">
+          <label>Year Filter (optional)</label>
+          <select id="ctYear" onchange="renderCharts()">
+            <option value="">All Years</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart canvases -->
+    <div class="charts-grid" id="chartsGrid">
+      <div class="chart-box" id="chartBox1">
+        <div id="chartPlaceholder" class="chart-placeholder">Select a team or employee above to view the chart</div>
+        <canvas id="chart1" style="display:none"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-section" id="tableSection" style="display:none">
+    <div class="table-header">
+      <h3 id="tableTitle">Summary</h3>
+      <span class="count" id="rowCount"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PLACEHOLDER -->
+  <div class="placeholder" id="placeholder">
+    <div class="icon">📋</div>
+    <p>Upload an Excel file to get started</p>
+  </div>
+
+</div>
+
+<div class="notify" id="notify"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════════
+let rawRows    = [];
+let aggregated = [];
+let filtered   = [];
+let currentView      = 'team';
+let currentChartType = 'trend';
+let chartInstance    = null;
+
+const MONTH_NAMES = ['','January','February','March','April','May','June',
+                     'July','August','September','October','November','December'];
+const MONTH_SHORT = ['','Jan','Feb','Mar','Apr','May','Jun',
+                     'Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// Colors for productivity bars (one per month, cycles)
+const PROD_COLORS = [
+  '#4ECDC4','#FFD93D','#B0A7E8','#FF8A80',
+  '#82B4D2','#FFAB4C','#95E1D3','#F38181',
+  '#6C5CE7','#00CEC9','#FDCB6E','#E17055'
+];
+
+// Colors for ticket type bars
+const TICKET_COLORS = {
+  INC:         { bg: '#4472C4', bd: '#2F5496' },
+  JIRA:        { bg: '#ED7D31', bd: '#C55A11' },
+  MACM:        { bg: '#70AD47', bd: '#538135' },
+  NonTicketed: { bg: '#C00000', bd: '#9C0000' },
+  RITM:        { bg: '#9B59B6', bd: '#7030A0' }
+};
+
+// ══════════════════════════════════════════════════════════
+//  FILE UPLOAD
+// ══════════════════════════════════════════════════════════
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) readFile(e.target.files[0]); });
+
+function readFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      processWorkbook(wb);
+      showNotify('✅ Loaded: ' + file.name, '#2e7d32');
+    } catch(err) {
+      showNotify('❌ Error: ' + err.message, '#c62828');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ══════════════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════════════
+function findCol(headers, keywords) {
+  for (const kw of keywords) {
+    const idx = headers.findIndex(h => h.includes(kw));
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
+
+function parseDate(val) {
+  if (!val) return { month: 0, year: 0 };
+  if (val instanceof Date) return { month: val.getMonth() + 1, year: val.getFullYear() };
+  if (typeof val === 'number') {
+    try { const d = XLSX.SSF.parse_date_code(val); if (d) return { month: d.m, year: d.y }; } catch(e) {}
+  }
+  const s = String(val).trim();
+  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (m) { let y = parseInt(m[3]); if (y < 100) y += y < 50 ? 2000 : 1900; return { month: parseInt(m[2]), year: y }; }
+  m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (m) return { month: parseInt(m[2]), year: parseInt(m[1]) };
+  const months3 = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  m = s.toLowerCase().match(/([a-z]+)[- ](\d{4})/);
+  if (m) { const mi = months3.indexOf(m[1].substring(0,3)) + 1; if (mi > 0) return { month: mi, year: parseInt(m[2]) }; }
+  return { month: 0, year: 0 };
+}
+
+function normaliseType(val) {
+  if (!val) return 'NonTicketed';
+  const v = String(val).trim().toUpperCase();
+  if (v.startsWith('INC'))  return 'INC';
+  if (v.startsWith('RITM')) return 'RITM';
+  if (v.startsWith('MACM')) return 'MACM';
+  if (v === 'PT' || v.startsWith('JIRA') || v === 'PROBLEM' || v === 'CHANGE' || v === 'CHG') return 'JIRA';
+  if (v === 'NON' || v.includes('NONTICK') || v.includes('NON-TICK') || v.includes('NON TICK') || v === 'NT') return 'NonTicketed';
+  const known = ['INC','RITM','MACM','JIRA'];
+  if (known.includes(v)) return v;
+  return 'NonTicketed';
+}
+
+function esc(str) {
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showNotify(msg, color) {
+  const el = document.getElementById('notify');
+  el.textContent = msg; el.style.background = color;
+  el.style.animation = 'none'; el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 3500);
+}
+
+// ══════════════════════════════════════════════════════════
+//  PROCESS WORKBOOK
+// ══════════════════════════════════════════════════════════
+function processWorkbook(wb) {
+  rawRows = [];
+  wb.SheetNames.forEach(sheetName => {
+    const sheet = wb.Sheets[sheetName];
+    if (!sheet) return;
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
+    if (rows.length < 2) return;
+
+    let headerRowIdx = 0;
+    for (let i = 0; i < Math.min(5, rows.length); i++) {
+      if (rows[i].some(c => c && String(c).trim().length > 0)) { headerRowIdx = i; break; }
+    }
+    const headers = rows[headerRowIdx].map(h => String(h||'').trim().toLowerCase());
+    const dateIdx  = findCol(headers, ['date']);
+    const nameIdx  = findCol(headers, ['name','employee','emp name','employname','staff']);
+    const typeIdx  = findCol(headers, ['ticket type','type','tickettype','incident type','category']);
+    const gradeIdx = findCol(headers, ['grade','level','band']);
+    const teamIdx  = findCol(headers, ['team','teamname','department','dept']);
+    if (nameIdx < 0 || typeIdx < 0) return;
+
+    for (let i = headerRowIdx + 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.every(c => !c || String(c).trim() === '')) continue;
+      const name = String(row[nameIdx]||'').trim();
+      if (!name) continue;
+      const rawType = row[typeIdx] !== undefined ? row[typeIdx] : '';
+      const grade   = gradeIdx >= 0 ? String(row[gradeIdx]||'').trim() : '';
+      const teamName = (teamIdx >= 0 ? String(row[teamIdx]||'').trim() : '') || sheetName;
+
+      let month = 0, year = 0;
+      if (dateIdx >= 0) {
+        const cellAddr = XLSX.utils.encode_cell({ r: i, c: dateIdx });
+        const cell = sheet[cellAddr];
+        if (cell) {
+          if (cell.t === 'd' && cell.v instanceof Date) { month = cell.v.getMonth()+1; year = cell.v.getFullYear(); }
+          else if (cell.t === 'n') { try { const d = XLSX.SSF.parse_date_code(cell.v); if (d) { month=d.m; year=d.y; } } catch(e) {} }
+          else { const r = parseDate(cell.w || cell.v); month=r.month; year=r.year; }
+        } else {
+          const r = parseDate(row[dateIdx]); month=r.month; year=r.year;
+        }
+      }
+      rawRows.push({ employName: name, grade, teamName, month, year, ticketType: normaliseType(rawType) });
+    }
+  });
+
+  aggregated = aggregateRows(rawRows);
+  filtered   = [...aggregated];
+  populateFilters();
+  populateChartSelectors();
+  updateCards(filtered);
+  renderTable();
+  showUI();
+}
+
+// ══════════════════════════════════════════════════════════
+//  AGGREGATE
+// ══════════════════════════════════════════════════════════
+function aggregateRows(rows) {
+  const map = {};
+  rows.forEach(r => {
+    const key = `${r.employName}||${r.teamName}||${r.month}||${r.year}`;
+    if (!map[key]) map[key] = { employName: r.employName, grade: r.grade, teamName: r.teamName,
+                                month: r.month, year: r.year, INC:0, RITM:0, MACM:0, JIRA:0, NonTicketed:0 };
+    const t = r.ticketType;
+    if (t in map[key]) map[key][t]++; else map[key].NonTicketed++;
+    if (!map[key].grade && r.grade) map[key].grade = r.grade;
+  });
+  return Object.values(map).sort((a,b) => {
+    if (a.teamName < b.teamName) return -1; if (a.teamName > b.teamName) return 1;
+    if (a.employName < b.employName) return -1; if (a.employName > b.employName) return 1;
+    if (a.year !== b.year) return a.year - b.year; return a.month - b.month;
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+//  FILTERS (table)
+// ══════════════════════════════════════════════════════════
+function populateFilters() {
+  const teams = [...new Set(aggregated.map(r => r.teamName))].sort();
+  const emps  = [...new Set(aggregated.map(r => r.employName))].sort();
+  const years = [...new Set(aggregated.map(r => r.year).filter(y => y > 0))].sort();
+
+  document.getElementById('fTeam').innerHTML     = '<option value="">All Teams</option>' + teams.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('');
+  document.getElementById('fEmployee').innerHTML = '<option value="">All Employees</option>' + emps.map(e=>`<option value="${esc(e)}">${esc(e)}</option>`).join('');
+  document.getElementById('fYear').innerHTML     = '<option value="">All Years</option>' + years.map(y=>`<option value="${y}">${y}</option>`).join('');
+}
+
+function applyFilters() {
+  const team = document.getElementById('fTeam').value;
+  const emp  = document.getElementById('fEmployee').value;
+  const mon  = document.getElementById('fMonth').value;
+  const yr   = document.getElementById('fYear').value;
+  filtered = aggregated.filter(r => {
+    if (team && r.teamName !== team) return false;
+    if (emp  && r.employName !== emp) return false;
+    if (mon  && String(r.month) !== mon) return false;
+    if (yr   && String(r.year)  !== yr) return false;
+    return true;
+  });
+  updateCards(filtered);
+  renderTable();
+}
+
+function resetFilters() {
+  ['fTeam','fEmployee','fMonth','fYear'].forEach(id => document.getElementById(id).value = '');
+  filtered = [...aggregated];
+  updateCards(filtered);
+  renderTable();
+}
+
+// ══════════════════════════════════════════════════════════
+//  CHART SELECTORS
+// ══════════════════════════════════════════════════════════
+function populateChartSelectors() {
+  const teams = [...new Set(aggregated.map(r => r.teamName))].sort();
+  const emps  = [...new Set(aggregated.map(r => r.employName))].sort();
+  const years = [...new Set(aggregated.map(r => r.year).filter(y => y > 0))].sort();
+
+  document.getElementById('ctTeam').innerHTML     = '<option value="">All Teams</option>' + teams.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('');
+  document.getElementById('ctEmployee').innerHTML = '<option value="">-- Select Employee --</option>' + emps.map(e=>`<option value="${esc(e)}">${esc(e)}</option>`).join('');
+  document.getElementById('ctYear').innerHTML     = '<option value="">All Years</option>' + years.map(y=>`<option value="${y}">${y}</option>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+//  VIEW SWITCH
+// ══════════════════════════════════════════════════════════
+function switchView(view) {
+  currentView = view;
+  ['tabTeam','tabIndividual','tabCharts'].forEach(id => document.getElementById(id).classList.remove('active'));
+  document.getElementById('tab' + view.charAt(0).toUpperCase() + view.slice(1)).classList.add('active');
+
+  const isCharts = view === 'charts';
+  document.getElementById('tableSection').style.display  = isCharts ? 'none' : '';
+  document.getElementById('chartsSection').style.display = isCharts ? 'block' : 'none';
+
+  if (isCharts) renderCharts();
+  else renderTable();
+}
+
+// ══════════════════════════════════════════════════════════
+//  CHART TYPE SWITCH
+// ══════════════════════════════════════════════════════════
+function switchChartType(type) {
+  currentChartType = type;
+  document.getElementById('ctTrend').classList.toggle('active', type === 'trend');
+  document.getElementById('ctProd').classList.toggle('active',  type === 'productivity');
+  document.getElementById('ctTeamGroup').style.display = type === 'trend'        ? '' : 'none';
+  document.getElementById('ctEmpGroup').style.display  = type === 'productivity' ? '' : 'none';
+  renderCharts();
+}
+
+// ══════════════════════════════════════════════════════════
+//  RENDER CHARTS (dispatcher)
+// ══════════════════════════════════════════════════════════
+function renderCharts() {
+  if (currentChartType === 'trend') renderTicketTrendChart();
+  else renderProductivityChart();
+}
+
+// ══════════════════════════════════════════════════════════
+//  CHART 1 — TICKET TREND GRAPH (team-wise grouped bar)
+// ══════════════════════════════════════════════════════════
+function getTeamMonthData(teamName, yearFilter) {
+  let data = teamName ? aggregated.filter(r => r.teamName === teamName) : [...aggregated];
+  if (yearFilter) data = data.filter(r => String(r.year) === yearFilter);
+
+  const monthSet = new Set();
+  data.forEach(r => { if (r.year > 0 && r.month > 0) monthSet.add(`${r.year}-${String(r.month).padStart(2,'0')}`); });
+  const months = [...monthSet].sort();
+
+  return months.map(m => {
+    const [y, mo] = m.split('-').map(Number);
+    const rows = data.filter(r => r.year === y && r.month === mo);
+    return {
+      label: `${MONTH_SHORT[mo]} ${y}`,
+      fullLabel: `${MONTH_NAMES[mo]} ${y}`,
+      INC:         rows.reduce((s,r) => s+r.INC, 0),
+      RITM:        rows.reduce((s,r) => s+r.RITM, 0),
+      MACM:        rows.reduce((s,r) => s+r.MACM, 0),
+      JIRA:        rows.reduce((s,r) => s+r.JIRA, 0),
+      NonTicketed: rows.reduce((s,r) => s+r.NonTicketed, 0)
+    };
+  });
+}
+
+function renderTicketTrendChart() {
+  const teamName  = document.getElementById('ctTeam').value;
+  const yearFilter = document.getElementById('ctYear').value;
+  const data      = getTeamMonthData(teamName, yearFilter);
+
+  const canvas      = document.getElementById('chart1');
+  const placeholder = document.getElementById('chartPlaceholder');
+
+  if (!data.length) {
+    placeholder.style.display = 'block';
+    placeholder.textContent   = 'No data available for the selected filters.';
+    canvas.style.display      = 'none';
+    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+    return;
+  }
+  placeholder.style.display = 'none';
+  canvas.style.display      = 'block';
+  canvas.style.height       = Math.max(380, data.length * 40) + 'px';
+
+  const types = ['INC', 'JIRA', 'MACM', 'NonTicketed', 'RITM'];
+  const labels = data.map(d => d.label);
+
+  const datasets = types.map(t => ({
+    label: t,
+    data: data.map(d => d[t]),
+    backgroundColor: TICKET_COLORS[t].bg,
+    borderColor:     TICKET_COLORS[t].bd,
+    borderWidth: 1,
+    borderRadius: 3,
+    datalabels: {
+      anchor: 'end',
+      align: 'end',
+      formatter: v => v > 0 ? v : null,
+      font: { size: 10, weight: '700' },
+      color: '#333',
+      offset: 2
+    }
+  }));
+
+  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+
+  chartInstance = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: { top: 24 } },
+      plugins: {
+        title: {
+          display: true,
+          text: `Ticket Trend Graphs for ${teamName || 'All Teams'}${yearFilter ? ' — ' + yearFilter : ''}`,
+          font: { size: 14, weight: 'bold', family: 'Segoe UI' },
+          color: '#222',
+          padding: { bottom: 16 }
+        },
+        legend: {
+          position: 'top',
+          labels: { font: { size: 12 }, usePointStyle: true, pointStyleWidth: 10 }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+        y: { beginAtZero: true, grid: { color: '#efefef' }, ticks: { font: { size: 11 } },
+             title: { display: true, text: 'Count', font: { size: 12 } } }
+      }
+    },
+    plugins: [ChartDataLabels]
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+//  CHART 2 — PRODUCTIVITY REPORT (individual bar + trend line)
+// ══════════════════════════════════════════════════════════
+function getEmployeeMonthData(empName, yearFilter) {
+  let data = aggregated.filter(r => r.employName === empName);
+  if (yearFilter) data = data.filter(r => String(r.year) === yearFilter);
+  data = [...data].sort((a,b) => a.year !== b.year ? a.year - b.year : a.month - b.month);
+
+  let runSum = 0, runCount = 0;
+  return data.map(r => {
+    const total   = r.INC + r.RITM + r.MACM + r.JIRA + r.NonTicketed;
+    const ticketed = r.INC + r.RITM + r.MACM + r.JIRA;
+    const pct     = total > 0 ? Math.round((ticketed / total) * 100) : 0;
+    runSum += pct; runCount++;
+    return {
+      label: `${MONTH_NAMES[r.month]} ${r.year}`,
+      pct,
+      avgPct: Math.round(runSum / runCount),
+      grade:    r.grade,
+      teamName: r.teamName,
+      INC: r.INC, RITM: r.RITM, MACM: r.MACM, JIRA: r.JIRA, NonTicketed: r.NonTicketed
+    };
+  });
+}
+
+function renderProductivityChart() {
+  const empName    = document.getElementById('ctEmployee').value;
+  const yearFilter = document.getElementById('ctYear').value;
+  const canvas      = document.getElementById('chart1');
+  const placeholder = document.getElementById('chartPlaceholder');
+
+  if (!empName) {
+    placeholder.style.display = 'block';
+    placeholder.textContent   = '← Select an employee from the dropdown above to see their Productivity Report';
+    canvas.style.display      = 'none';
+    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+    return;
+  }
+
+  const data = getEmployeeMonthData(empName, yearFilter);
+  if (!data.length) {
+    placeholder.style.display = 'block';
+    placeholder.textContent   = 'No data available for this employee.';
+    canvas.style.display      = 'none';
+    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+    return;
+  }
+
+  placeholder.style.display = 'none';
+  canvas.style.display      = 'block';
+  canvas.style.height       = '420px';
+
+  const grade    = data[0].grade    || '';
+  const teamName = data[0].teamName || '';
+  const barColors = data.map((_,i) => PROD_COLORS[i % PROD_COLORS.length]);
+
+  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+
+  chartInstance = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d.label),
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Monthly Productivity %',
+          data: data.map(d => d.pct),
+          backgroundColor: barColors,
+          borderColor:     barColors,
+          borderWidth: 1,
+          borderRadius: 4,
+          datalabels: {
+            anchor: 'start',
+            align: 'end',
+            offset: 6,
+            formatter: v => `${v}%`,
+            font: { size: 12, weight: 'bold' },
+            color: '#333'
+          }
+        },
+        {
+          type: 'line',
+          label: 'Cumulative Average %',
+          data: data.map(d => d.avgPct),
+          borderColor: '#E53935',
+          borderDash: [6, 4],
+          borderWidth: 2.5,
+          pointBackgroundColor: '#E53935',
+          pointBorderColor: '#E53935',
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          tension: 0,
+          fill: false,
+          yAxisID: 'y',
+          datalabels: {
+            anchor: 'end',
+            align: 'top',
+            offset: 4,
+            formatter: v => `${v}%`,
+            font: { size: 11, weight: 'bold' },
+            color: '#E53935'
+          }
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: { top: 30, right: 16 } },
+      plugins: {
+        title: {
+          display: true,
+          text: `Productivity Report for ${empName}${grade ? ' ('+grade+')' : ''} from ${teamName} Team`,
+          font: { size: 14, weight: 'bold', family: 'Segoe UI' },
+          color: '#222',
+          padding: { bottom: 16 }
+        },
+        legend: {
+          position: 'top',
+          labels: { font: { size: 12 }, usePointStyle: true }
+        },
+        tooltip: {
+          callbacks: {
+            afterBody: items => {
+              const i = items[0]?.dataIndex;
+              if (i === undefined) return [];
+              const d = data[i];
+              return [`INC: ${d.INC}  RITM: ${d.RITM}  MACM: ${d.MACM}  JIRA: ${d.JIRA}  Non-Ticketed: ${d.NonTicketed}`];
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 11 } },
+          title: { display: true, text: 'Time Period', font: { size: 12 } }
+        },
+        y: {
+          beginAtZero: true,
+          max: 110,
+          grid: { color: '#efefef' },
+          ticks: { callback: v => v + '%', font: { size: 11 } },
+          title: { display: true, text: 'Productivity %', font: { size: 12 } }
+        }
+      }
+    },
+    plugins: [ChartDataLabels]
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+//  RENDER TABLE
+// ══════════════════════════════════════════════════════════
+function renderTable() {
+  const head = document.getElementById('tableHead');
+  const body = document.getElementById('tableBody');
+
+  const cols = currentView === 'team'
+    ? ['#','Team Name','Employee Name','Grade','Month','Year','INC','RITM','MACM','JIRA','Non-Ticketed','Total']
+    : ['#','Employee Name','Grade','Team Name','Month','Year','INC','RITM','MACM','JIRA','Non-Ticketed','Total'];
+
+  head.innerHTML = '<tr>' + cols.map((c,i) => `<th class="${i>=6?'num':''}">${c}</th>`).join('') + '</tr>';
+
+  if (!filtered.length) {
+    body.innerHTML = `<tr><td colspan="${cols.length}" style="text-align:center;padding:40px;color:#aaa">No data matches the current filters.</td></tr>`;
+    document.getElementById('rowCount').textContent = '0 records';
+    document.getElementById('tableTitle').textContent = currentView === 'team' ? 'Team View' : 'Individual View';
+    return;
+  }
+
+  const data = [...filtered].sort((a,b) => {
+    const primary = currentView === 'individual' ? 'employName' : 'teamName';
+    if (a[primary] < b[primary]) return -1; if (a[primary] > b[primary]) return 1;
+    if (a.year !== b.year) return a.year - b.year; return a.month - b.month;
+  });
+
+  let html = '';
+  let tot = { INC:0, RITM:0, MACM:0, JIRA:0, NonTicketed:0 };
+
+  data.forEach((r,idx) => {
+    const total = r.INC+r.RITM+r.MACM+r.JIRA+r.NonTicketed;
+    tot.INC+=r.INC; tot.RITM+=r.RITM; tot.MACM+=r.MACM; tot.JIRA+=r.JIRA; tot.NonTicketed+=r.NonTicketed;
+    const mn = r.month > 0 ? MONTH_NAMES[r.month] : '-';
+    const yr = r.year  > 0 ? r.year  : '-';
+    if (currentView === 'team') {
+      html += `<tr><td>${idx+1}</td><td><strong>${esc(r.teamName)}</strong></td><td>${esc(r.employName)}</td><td>${esc(r.grade)||'-'}</td><td>${mn}</td><td>${yr}</td><td class="num">${nb(r.INC,'inc')}</td><td class="num">${nb(r.RITM,'ritm')}</td><td class="num">${nb(r.MACM,'macm')}</td><td class="num">${nb(r.JIRA,'jira')}</td><td class="num">${nb(r.NonTicketed,'nt')}</td><td class="num"><strong>${total}</strong></td></tr>`;
+    } else {
+      html += `<tr><td>${idx+1}</td><td>${esc(r.employName)}</td><td>${esc(r.grade)||'-'}</td><td><strong>${esc(r.teamName)}</strong></td><td>${mn}</td><td>${yr}</td><td class="num">${nb(r.INC,'inc')}</td><td class="num">${nb(r.RITM,'ritm')}</td><td class="num">${nb(r.MACM,'macm')}</td><td class="num">${nb(r.JIRA,'jira')}</td><td class="num">${nb(r.NonTicketed,'nt')}</td><td class="num"><strong>${total}</strong></td></tr>`;
+    }
+  });
+
+  const gTotal = tot.INC+tot.RITM+tot.MACM+tot.JIRA+tot.NonTicketed;
+  html += `<tr class="total-row"><td colspan="6">TOTAL</td><td class="num">${tot.INC}</td><td class="num">${tot.RITM}</td><td class="num">${tot.MACM}</td><td class="num">${tot.JIRA}</td><td class="num">${tot.NonTicketed}</td><td class="num">${gTotal}</td></tr>`;
+
+  body.innerHTML = html;
+  document.getElementById('rowCount').textContent    = `${data.length} records`;
+  document.getElementById('tableTitle').textContent  = currentView === 'team' ? 'Team View' : 'Individual View';
+}
+
+function nb(n, type) {
+  return n === 0 ? `<span class="zero">-</span>` : `<span class="badge badge-${type}">${n}</span>`;
+}
+
+// ══════════════════════════════════════════════════════════
+//  CARDS
+// ══════════════════════════════════════════════════════════
+function updateCards(data) {
+  const emps  = new Set(data.map(r => r.employName));
+  const teams = new Set(data.map(r => r.teamName));
+  document.getElementById('cEmployees').textContent = emps.size;
+  document.getElementById('cTeams').textContent     = teams.size;
+  document.getElementById('cINC').textContent       = data.reduce((s,r)=>s+r.INC,0);
+  document.getElementById('cRITM').textContent      = data.reduce((s,r)=>s+r.RITM,0);
+  document.getElementById('cMACM').textContent      = data.reduce((s,r)=>s+r.MACM,0);
+  document.getElementById('cNT').textContent        = data.reduce((s,r)=>s+r.NonTicketed,0);
+}
+
+// ══════════════════════════════════════════════════════════
+//  EXPORT
+// ══════════════════════════════════════════════════════════
+
+// Custom employee export order (case-insensitive match)
+const EMP_ORDER = [
+  'Balaji','Sabareesh','Shaik','Mirudula','Subramanyam',
+  'Sakshi','Mimansa','Akash','Yash','Tanmay',
+  'Dipankar Singh','Vegi Aparna','Arbaaz','Zakwan',
+  'Suryatheja','Kiran','Krupa'
+];
+
+function empSortKey(name) {
+  const n = String(name || '').trim().toLowerCase();
+  const idx = EMP_ORDER.findIndex(e => e.toLowerCase() === n);
+  return idx >= 0 ? idx : EMP_ORDER.length + n.charCodeAt(0); // unlisted names go last, alphabetically
+}
+
+function sortByEmpOrder(rows) {
+  return [...rows].sort((a, b) => {
+    const diff = empSortKey(a.employName) - empSortKey(b.employName);
+    if (diff !== 0) return diff;
+    // same employee: sort by year then month
+    if (a.year !== b.year) return a.year - b.year;
+    return a.month - b.month;
+  });
+}
+
+function toExportRow(r, i) {
+  return [
+    i + 1,
+    r.employName,
+    r.grade,
+    r.teamName,
+    r.month > 0 ? MONTH_NAMES[r.month] : '',
+    r.year  > 0 ? r.year  : '',
+    r.INC, r.RITM, r.MACM, r.JIRA, r.NonTicketed,
+    r.INC + r.RITM + r.MACM + r.JIRA + r.NonTicketed
+  ];
+}
+
+function exportToExcel() {
+  const wb  = XLSX.utils.book_new();
+  const hdr = ['#','Employee Name','Grade','Team Name','Month','Year','INC','RITM','MACM','JIRA','NonTicketed','Total'];
+  const colW = [5,22,10,20,12,8,8,8,8,8,12,8].map(w => ({ wch: w }));
+
+  // Summary sheet — filtered data in custom emp order
+  const summaryRows = sortByEmpOrder(filtered).map((r, i) => toExportRow(r, i));
+  const ws = XLSX.utils.aoa_to_sheet([hdr, ...summaryRows]);
+  ws['!cols'] = colW;
+  XLSX.utils.book_append_sheet(wb, ws, 'Summary');
+
+  // One sheet per team — each sorted by custom emp order
+  const teams = [...new Set(aggregated.map(r => r.teamName))].sort();
+  teams.forEach(team => {
+    const teamData = sortByEmpOrder(aggregated.filter(r => r.teamName === team));
+    const tw = XLSX.utils.aoa_to_sheet([hdr, ...teamData.map((r, i) => toExportRow(r, i))]);
+    tw['!cols'] = colW;
+    XLSX.utils.book_append_sheet(wb, tw, team.replace(/[\/\\*?\[\]:]/g, '-').substring(0, 31));
+  });
+
+  XLSX.writeFile(wb, 'Ticket_Dashboard_Export.xlsx');
+  showNotify('✅ Exported!', '#2e7d32');
+}
+
+// ══════════════════════════════════════════════════════════
+//  SHOW UI
+// ══════════════════════════════════════════════════════════
+function showUI() {
+  document.getElementById('placeholder').style.display    = 'none';
+  document.getElementById('uploadSection').style.display  = 'none';
+  document.getElementById('cardsSection').style.display   = '';
+  document.getElementById('filtersPanel').style.display   = '';
+  document.getElementById('viewTabs').style.display       = '';
+  document.getElementById('tableSection').style.display   = '';
+  document.getElementById('chartsSection').style.display  = 'none';
+}
+</script>
+</body>
+</html>
